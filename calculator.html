@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculator</title>
+<style>
+  /* ============================
+     RESET & BASE
+     ============================ */
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 30% 20%, #2b2540, #14101f 70%);
+    font-family: 'Segoe UI', Arial, sans-serif;
+  }
+
+  /* ============================
+     CALCULATOR SHELL
+     ============================ */
+  .calculator {
+    width: 320px;
+    background: #1d1830;
+    border-radius: 24px;
+    padding: 22px;
+    box-shadow:
+      0 30px 60px -20px rgba(0,0,0,0.6),
+      inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+
+  /* ============================
+     DISPLAY SCREEN
+     ============================ */
+  .display {
+    background: #100c1e;
+    border-radius: 16px;
+    padding: 24px 18px 18px;
+    margin-bottom: 18px;
+    text-align: right;
+    overflow: hidden;
+  }
+
+  .display .expression {
+    min-height: 20px;
+    color: #8a83ab;
+    font-size: 14px;
+    font-family: 'Courier New', monospace;
+    white-space: nowrap;
+    overflow-x: auto;
+  }
+
+  .display .result {
+    color: #ffffff;
+    font-size: 40px;
+    font-weight: 600;
+    margin-top: 6px;
+    white-space: nowrap;
+    overflow-x: auto;
+    font-family: 'Courier New', monospace;
+  }
+
+  /* ============================
+     BUTTON GRID
+     ============================ */
+  .buttons {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+
+  button {
+    border: none;
+    outline: none;
+    cursor: pointer;
+    height: 62px;
+    border-radius: 14px;
+    font-size: 19px;
+    font-weight: 600;
+    color: #ffffff;
+    background: #2a2444;
+    transition: transform 0.08s ease, filter 0.15s ease;
+  }
+
+  button:hover {
+    filter: brightness(1.15);
+  }
+
+  button:active {
+    transform: scale(0.95);
+  }
+
+  /* number buttons */
+  .btn-number {
+    background: #2a2444;
+  }
+
+  /* operator buttons (+ - x /) */
+  .btn-operator {
+    background: #4a3f8a;
+    color: #d9ceff;
+  }
+
+  /* function buttons (AC, DEL, %) */
+  .btn-function {
+    background: #362f56;
+    color: #c9c2ea;
+    font-size: 16px;
+  }
+
+  /* equals button spans 2 columns */
+  .btn-equals {
+    background: linear-gradient(135deg, #ff7a59, #ff4f81);
+    grid-column: span 2;
+  }
+
+  /* zero button spans 2 columns */
+  .btn-zero {
+    grid-column: span 2;
+  }
+
+  @media (max-width: 360px) {
+    .calculator {
+      width: 92vw;
+    }
+  }
+</style>
+</head>
+<body>
+
+  <div class="calculator">
+    <!-- DISPLAY SCREEN: shows the running expression and the current result -->
+    <div class="display">
+      <div class="expression" id="expression"></div>
+      <div class="result" id="result">0</div>
+    </div>
+
+    <!-- BUTTON GRID: laid out with CSS grid, 4 columns -->
+    <div class="buttons">
+      <button class="btn-function" data-action="clear">AC</button>
+      <button class="btn-function" data-action="delete">DEL</button>
+      <button class="btn-function" data-action="percent">%</button>
+      <button class="btn-operator" data-action="divide">÷</button>
+
+      <button class="btn-number" data-number="7">7</button>
+      <button class="btn-number" data-number="8">8</button>
+      <button class="btn-number" data-number="9">9</button>
+      <button class="btn-operator" data-action="multiply">×</button>
+
+      <button class="btn-number" data-number="4">4</button>
+      <button class="btn-number" data-number="5">5</button>
+      <button class="btn-number" data-number="6">6</button>
+      <button class="btn-operator" data-action="subtract">−</button>
+
+      <button class="btn-number" data-number="1">1</button>
+      <button class="btn-number" data-number="2">2</button>
+      <button class="btn-number" data-number="3">3</button>
+      <button class="btn-operator" data-action="add">+</button>
+
+      <button class="btn-number btn-zero" data-number="0">0</button>
+      <button class="btn-number" data-number=".">.</button>
+      <button class="btn-equals" data-action="equals">=</button>
+    </div>
+  </div>
+
+  <script>
+    // ============================
+    // STATE
+    // ============================
+    // We keep track of everything the calculator needs to know:
+    let firstNumber = null;      // the number entered before the operator
+    let secondNumber = null;     // the number entered after the operator
+    let currentOperator = null;  // which operation is selected: + - x /
+    let displayValue = '0';      // what's currently shown on the big result line
+    let shouldResetDisplay = false; // true right after pressing an operator or equals
+
+    // Grab the two display elements
+    const expressionEl = document.getElementById('expression');
+    const resultEl = document.getElementById('result');
+
+    // ============================
+    // RENDER FUNCTION
+    // ============================
+    // Updates the screen to match the current state
+    function updateDisplay() {
+      resultEl.textContent = displayValue;
+
+      if (currentOperator && firstNumber !== null) {
+        const opSymbol = { add: '+', subtract: '−', multiply: '×', divide: '÷' }[currentOperator];
+        expressionEl.textContent = `${firstNumber} ${opSymbol}`;
+      } else {
+        expressionEl.textContent = '';
+      }
+    }
+
+    // ============================
+    // CALCULATION LOGIC
+    // ============================
+    // Performs the actual math using if-else statements
+    function calculate(num1, operator, num2) {
+      let result;
+
+      if (operator === 'add') {
+        result = num1 + num2;
+      } else if (operator === 'subtract') {
+        result = num1 - num2;
+      } else if (operator === 'multiply') {
+        result = num1 * num2;
+      } else if (operator === 'divide') {
+        if (num2 === 0) {
+          return 'Error';
+        }
+        result = num1 / num2;
+      } else {
+        result = num2;
+      }
+
+      // Round to avoid long floating point results like 0.1 + 0.2 = 0.30000000000000004
+      if (typeof result === 'number') {
+        result = Math.round(result * 1e10) / 1e10;
+      }
+
+      return result;
+    }
+
+    // ============================
+    // BUTTON HANDLERS
+    // ============================
+
+    // Handle number and decimal point presses
+    function handleNumber(num) {
+      if (shouldResetDisplay) {
+        displayValue = '0';
+        shouldResetDisplay = false;
+      }
+
+      // Prevent multiple decimal points in one number
+      if (num === '.' && displayValue.includes('.')) {
+        return;
+      }
+
+      // Replace the initial 0 unless we're adding a decimal
+      if (displayValue === '0' && num !== '.') {
+        displayValue = num;
+      } else {
+        displayValue += num;
+      }
+
+      updateDisplay();
+    }
+
+    // Handle operator presses (+ - x /)
+    function handleOperator(operator) {
+      const inputValue = parseFloat(displayValue);
+
+      // If an operator was already chosen and the user typed a second number,
+      // calculate the result first (chained calculations, e.g. 5 + 3 + 2)
+      if (currentOperator && !shouldResetDisplay) {
+        const result = calculate(firstNumber, currentOperator, inputValue);
+        displayValue = String(result);
+        firstNumber = result === 'Error' ? null : result;
+      } else {
+        firstNumber = inputValue;
+      }
+
+      currentOperator = operator;
+      shouldResetDisplay = true;
+      updateDisplay();
+    }
+
+    // Handle the equals button
+    function handleEquals() {
+      if (currentOperator === null || firstNumber === null) {
+        return;
+      }
+
+      secondNumber = parseFloat(displayValue);
+      const result = calculate(firstNumber, currentOperator, secondNumber);
+
+      displayValue = String(result);
+      currentOperator = null;
+      firstNumber = null;
+      secondNumber = null;
+      shouldResetDisplay = true;
+
+      updateDisplay();
+    }
+
+    // Handle AC (all clear)
+    function handleClear() {
+      displayValue = '0';
+      firstNumber = null;
+      secondNumber = null;
+      currentOperator = null;
+      shouldResetDisplay = false;
+      updateDisplay();
+    }
+
+    // Handle DEL (delete last character)
+    function handleDelete() {
+      if (displayValue.length === 1) {
+        displayValue = '0';
+      } else {
+        displayValue = displayValue.slice(0, -1);
+      }
+      updateDisplay();
+    }
+
+    // Handle % (convert current display to a percentage)
+    function handlePercent() {
+      displayValue = String(parseFloat(displayValue) / 100);
+      updateDisplay();
+    }
+
+    // ============================
+    // EVENT LISTENERS
+    // ============================
+    // Loop through every button on the page and attach the right handler
+    const allButtons = document.querySelectorAll('button');
+
+    allButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const number = button.getAttribute('data-number');
+        const action = button.getAttribute('data-action');
+
+        if (number !== null) {
+          handleNumber(number);
+        } else if (action === 'add' || action === 'subtract' || action === 'multiply' || action === 'divide') {
+          handleOperator(action);
+        } else if (action === 'equals') {
+          handleEquals();
+        } else if (action === 'clear') {
+          handleClear();
+        } else if (action === 'delete') {
+          handleDelete();
+        } else if (action === 'percent') {
+          handlePercent();
+        }
+      });
+    });
+
+    // Bonus: support keyboard input too
+    document.addEventListener('keydown', (e) => {
+      if (e.key >= '0' && e.key <= '9') handleNumber(e.key);
+      if (e.key === '.') handleNumber('.');
+      if (e.key === '+') handleOperator('add');
+      if (e.key === '-') handleOperator('subtract');
+      if (e.key === '*') handleOperator('multiply');
+      if (e.key === '/') { e.preventDefault(); handleOperator('divide'); }
+      if (e.key === 'Enter' || e.key === '=') handleEquals();
+      if (e.key === 'Backspace') handleDelete();
+      if (e.key === 'Escape') handleClear();
+    });
+
+    // Initialize display on page load
+    updateDisplay();
+  </script>
+
+</body>
+</html>
